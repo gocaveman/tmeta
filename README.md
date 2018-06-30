@@ -35,7 +35,7 @@ meta := tmeta.NewMeta()
 err := meta.Parse(Widget{})
 
 // database connection with dbr
-conn, err := dbr.Open("sqlite3", "file:test?mode=memory&cache=shared", nil)
+conn, err := dbr.Open(...)
 
 // use a Builder to construct queries
 b := tmetadbr.New(conn, meta)
@@ -234,7 +234,7 @@ ResultWithOneUpdate makes this simple.  Example:
 err = b.ResultWithOneUpdate(b.MustUpdateByID(&theRecord).Exec()))
 ```
 
-In this case theRecord was read earlier, some fields were modified and it's being updated now.  If not exactly one record was updated, `ErrUpdateFailed` will be returned.
+In this case `theRecord` was read earlier, some fields were modified and it's being updated now.  If not exactly one record was updated, `ErrUpdateFailed` will be returned.
 
 ## Convience Methods - Must..., Result... and Exec...
 
@@ -284,11 +284,8 @@ This package is currently on version 0, so there is no official guarantee of API
 
 ## TODO
 
-- Complete README
-- See if tmeta itself needs any more tests, or just cleanup
-
-- Test auto increment
-- Test optimistic locking (versions)
-- Test MySQL-specifc stuff
-- Test Postgres-specifc stuff
+- Write tests for auto increment
+- Write tests for optimistic locking (versions)
+- Write tests for MySQL-specifc stuff
+- Write tests for Postgres-specifc stuff
 - Tag it v0.1.0

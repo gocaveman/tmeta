@@ -30,6 +30,11 @@ func Parse(i interface{}) error {
 	return DefaultMeta.Parse(i)
 }
 
+// MustParse is an alias for DefaultMeta.MustParse()
+func MustParse(i interface{}) {
+	DefaultMeta.MustParse(i)
+}
+
 // NewMeta makes a new Meta.
 func NewMeta() *Meta {
 	return &Meta{
@@ -296,6 +301,14 @@ func (m *Meta) typeForName(name string) reflect.Type {
 func (m *Meta) Parse(i interface{}) error {
 	t := derefType(reflect.TypeOf(i))
 	return m.ParseType(t)
+}
+
+// MustParse is like Parse but will panic on error.
+func (m *Meta) MustParse(i interface{}) {
+	err := m.Parse(i)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // ParseTypeNamed works like ParseType but allows you to specify the name rather than having

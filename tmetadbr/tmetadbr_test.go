@@ -2,6 +2,7 @@ package tmetadbr
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gocraft/dbr"
 	"github.com/stretchr/testify/assert"
@@ -300,10 +301,58 @@ func TestRelationBelongsToManyIDs(t *testing.T) {
 
 }
 
+type TimeTester struct {
+	TimeTesterID int64     `db:"time_tester_id" tmeta:"pk,auto_incr"`
+	Name         string    `db:"name"`
+	CreateTime   time.Time `db:"create_time"`
+	UpdateTime   time.Time `db:"update_time"`
+}
+
+func (tt *TimeTester) CreateTimeTouch() { tt.CreateTime = time.Now() }
+func (tt *TimeTester) UpdateTimeTouch() { tt.UpdateTime = time.Now() }
+
+func TestSQLite3(t *testing.T) {
+
+	assert := assert.New(t)
+	sess, meta, err := doSetup()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = sess.Exec(`
+CREATE TABLE time_tester (
+	time_tester_id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name VARCHAR(255),
+	create_time TEXT,
+	update_time TEXT
+)`)
+	assert.NoError(err)
+
+	meta.MustParse(TimeTester{})
+
+	b := New(sess, meta)
+
+	timeTester := TimeTester{
+		Name: "test1",
+	}
+
+	res, err := b.MustInsert(&timeTester).Exec()
+	assert.NoError(b.ResultWithInsertID(&timeTester, res, err))
+
+}
+
 func TestMySQL(t *testing.T) {
 	if mysqlConnStr == "" {
 		t.SkipNow()
 	}
+
+	// type Widget1 struct {
+	// 	Widget1ID  int64     `db:"widget1_id" tmeta:"pk,auto_incr"`
+	// 	Name       string    `db:"name"`
+	// 	CreateTime time.Time `db:"create_time"`
+	// 	UpdateTime time.Time `db:"update_time"`
+	// }
+
 	t.Logf("TODO: MySQL-specific testing")
 }
 

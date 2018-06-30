@@ -703,6 +703,9 @@ func (b *Builder) ResultWithOneUpdate(res sql.Result, err error) error {
 // If err is non-nil it will be returned.  If the object provided
 // has an auto increment primary key, then LastInsertId is used used
 // to populate it.
+// TODO: This should be refactored so it can be used on one line, if possible.
+// It doesn't provide the same convenience that ResultWithOneUpdate does due to
+// needing the extra argument.
 func (b *Builder) ResultWithInsertID(o interface{}, res sql.Result, err error) error {
 	if err != nil {
 		return err
@@ -721,9 +724,7 @@ func (b *Builder) ResultWithInsertID(o interface{}, res sql.Result, err error) e
 		}
 
 		vo := reflect.ValueOf(o)
-		pkf := vo.FieldByNameFunc(func(n string) bool {
-			return n == ti.GoPKFields()[0]
-		})
+		pkf := derefValue(vo).FieldByName(ti.GoPKFields()[0])
 
 		id, err := res.LastInsertId()
 		if err != nil {
