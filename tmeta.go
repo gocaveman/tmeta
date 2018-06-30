@@ -26,7 +26,7 @@ Some conventions for consistency:
 var DefaultMeta = NewMeta()
 
 // Parse is an alias for DefaultMeta.Parse()
-func (m *Meta) Parse(i interface{}) error {
+func Parse(i interface{}) error {
 	return DefaultMeta.Parse(i)
 }
 
