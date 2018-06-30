@@ -44,7 +44,7 @@ b := tmetadbr.New(conn, meta)
 // query building steps, not to the queries themselves
 
 // create
-widgetID := gouuidv6.NewB64().String()
+widgetID := gouuidv6.NewB64().String() // use what you want for an ID, my personal favorite: github.com/bradleypeabody/gouuidv6
 _, err = b.MustInsert(&Widget{WidgetID: widgetID,Name: "Widget A"}).Exec()
 
 // read multiple
