@@ -23,39 +23,42 @@ Some conventions for consistency:
   or interfaces removed.  Public functions should take care to derefType() or derefValue() as needed.
 */
 
+// NewMeta makes a new Meta.
 func NewMeta() *Meta {
 	return &Meta{
 		tableInfoMap: make(map[reflect.Type]*TableInfo),
 	}
 }
 
+// Meta knows about your tables and the Go structs they correspond to.
 type Meta struct {
 	tableInfoMap map[reflect.Type]*TableInfo
-	// FIXME: delay DriverName until we actually need it - a better abstraction might be some sort of Dialect
+	// NOTE: delay DriverName until we actually need it - a better abstraction might be some sort of Dialect
 	// DriverName   string
 }
 
+// TableInfo is the information for a single table.
 type TableInfo struct {
-	name        string       // the short name for this table, by convention this is often the SQLTableName but not required
-	sqlName     string       // SQL table names
-	goType      reflect.Type // underlying Go type (pointer removed)
-	sqlPKFields []string     // SQL primary key field names
-
-	// FIXME: not sure if we even need to know this - SQLFields allows the caller to specify if they want
-	// the pk fields, which is the main use case - deciding if you need pk fields in the insert, if after
-	// writing the tests this never comes up as needed, then just remove
-
-	pkAutoIncr      bool   // true if keys are auto-incremented by the database
-	sqlVersionField string // name of version col, empty disables optimistic locking
-	// TODO: function to generate new version number (should increment for number or generate nonce for string)
+	name            string       // the short name for this table, by convention this is often the SQLTableName but not required
+	sqlName         string       // SQL table names
+	goType          reflect.Type // underlying Go type (pointer removed)
+	sqlPKFields     []string     // SQL primary key field names
+	pkAutoIncr      bool         // true if keys are auto-incremented by the database
+	sqlVersionField string       // name of version col, empty disables optimistic locking
 	RelationMap
+
+	// TODO: function to generate new version number? (should increment for number or generate nonce for string)
 }
 
+// NewTableInfo makes a new instance.
 func NewTableInfo(goType reflect.Type) *TableInfo {
 	var ti TableInfo
 	return ti.SetGoType(goType)
 }
 
+// SetGoType assigns the struct type.  Must be of kind struct.
+// The Name and SQLName will be assigned to the snake case name of the struct
+// if not already set.
 func (ti *TableInfo) SetGoType(goType reflect.Type) *TableInfo {
 	ti.goType = goType
 	if ti.name == "" {
@@ -65,6 +68,8 @@ func (ti *TableInfo) SetGoType(goType reflect.Type) *TableInfo {
 	return ti
 }
 
+// SetName sets the logical name of this table.
+// The SQLName will be set if not already assigned.
 func (ti *TableInfo) SetName(name string) *TableInfo {
 	ti.name = name
 	if ti.sqlName == "" {
@@ -73,27 +78,33 @@ func (ti *TableInfo) SetName(name string) *TableInfo {
 	return ti
 }
 
+// SetSQLName sets the SQL name of the table.
 func (ti *TableInfo) SetSQLName(sqlName string) *TableInfo {
 	ti.sqlName = sqlName
 	return ti
 }
 
+// Name returns the logical name.
 func (ti *TableInfo) Name() string {
 	return ti.name
 }
 
+// SQLName returns the SQL name of the table.
 func (ti *TableInfo) SQLName() string {
 	return ti.sqlName
 }
 
+// GoType returns the reflect.Type.
 func (ti *TableInfo) GoType() reflect.Type {
 	return ti.goType
 }
 
+// SQLPKFields returns the SQL table field name(s) of the primary key(s).
 func (ti *TableInfo) SQLPKFields() []string {
 	return ti.sqlPKFields
 }
 
+// GoPKFields returns the Go struct field name(s) of the primary key(s).
 func (ti *TableInfo) GoPKFields() []string {
 	var ret []string
 	for _, pkf := range ti.sqlPKFields {
@@ -104,20 +115,25 @@ func (ti *TableInfo) GoPKFields() []string {
 	return ret
 }
 
+// PKAutoIncr returns true if the primary key is auto incrementing.
 func (ti *TableInfo) PKAutoIncr() bool {
 	return ti.pkAutoIncr
 }
 
+// SQLVersionField returns the SQL field name of the version field, empty string
+// if the version field/optimistic locking is disabled.
 func (ti *TableInfo) SQLVersionField() string {
 	return ti.sqlVersionField
 }
 
+// SetSQLPKFields sets the primary key fields.
 func (ti *TableInfo) SetSQLPKFields(isAutoIncr bool, sqlPKFields []string) *TableInfo {
 	ti.pkAutoIncr = isAutoIncr
 	ti.sqlPKFields = sqlPKFields
 	return ti
 }
 
+// AddRelation adds a relation.
 func (ti *TableInfo) AddRelation(relation Relation) *TableInfo {
 	if ti.RelationMap == nil {
 		ti.RelationMap = make(RelationMap)
@@ -126,11 +142,13 @@ func (ti *TableInfo) AddRelation(relation Relation) *TableInfo {
 	return ti
 }
 
+// SetSQLVersionField sets the version field.
 func (ti *TableInfo) SetSQLVersionField(sqlVersionField string) *TableInfo {
 	ti.sqlVersionField = sqlVersionField
 	return ti
 }
 
+// IsSQLPKField returns true if the SQL field name provided is one of the primary key fields.
 func (ti *TableInfo) IsSQLPKField(sqlName string) bool {
 	for _, f := range ti.sqlPKFields {
 		if f == sqlName {
@@ -140,6 +158,8 @@ func (ti *TableInfo) IsSQLPKField(sqlName string) bool {
 	return false
 }
 
+// SQLFields returns the SQL field names for this table.  If withPK is true
+// the primary key(s) are included in the result.
 func (ti *TableInfo) SQLFields(withPK bool) []string {
 	var ret []string
 	idxes := exportedFieldIndexes(ti.goType)
