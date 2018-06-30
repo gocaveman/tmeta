@@ -102,6 +102,21 @@ _, err = b.MustSelectRelation(&author, "book_list").Load(&author.BookList)
 A "has_one" relation is like a "has_many" but is used for a one-to-one relation.
 
 ```golang
+type Category struct {
+	CategoryID   string        `db:"category_id" tmeta:"pk"`
+	Name         string        `db:"name"`
+	CategoryInfo *CategoryInfo `db:"-" tmeta:"has_one"`
+}
+
+type CategoryInfo struct {
+	CategoryInfoID string `db:"category_info_id" tmeta:"pk"`
+	CategoryID     string `db:"category_id"`
+}
+
+categoryT := b.For(Category{})
+err = b.MustSelectRelation(&category, "category_info").
+	LoadOne(categoryT.RelationTargetPtr(&category, "category_info")))
+
 ```
 
 ### Belongs To
@@ -109,59 +124,152 @@ A "has_one" relation is like a "has_many" but is used for a one-to-one relation.
 A "belongs_to" relation is the inverse of a "has_many", it is used when the ID is on the same table as the field being loaded.
 
 ```golang
+type Author struct {
+	AuthorID   string `db:"author_id" tmeta:"pk"`
+	NomDePlume string `db:"nom_de_plume"`
+}
+
+type Book struct {
+	BookID   string  `db:"book_id" tmeta:"pk"`
+	AuthorID string  `db:"author_id"`
+	Author   *Author `db:"-" tmeta:"belongs_to"`
+	Title    string  `db:"title"`
+}
+
+bookT := b.For(Book{})
+assert.NoError(b.MustSelectRelation(&book, "author").
+	LoadOne(bookT.RelationTargetPtr(&book, "author")))
 ```
 
 ### Belongs To Many
 
 A "belongs_to_many" relation is used for a many-to-many relation, using a join table.
 
+```golang
+type Book struct {
+	BookID string           `db:"book_id" tmeta:"pk"`
+	Title string            `db:"title"`
+	CategoryList []Category `db:"-" tmeta:"belongs_to_many,join_name=book_category"`
+}
+
+// BookCategory is the join table
+type BookCategory struct {
+	BookID     string `db:"book_id" tmeta:"pk"`
+	CategoryID string `db:"category_id" tmeta:"pk"`
+}
+
+type Category struct {
+	CategoryID string `db:"category_id" tmeta:"pk"`
+	Name       string `db:"name"`
+}
+
+_, err = b.MustSelectRelation(&book, "category_list").
+	Load(bookT.RelationTargetPtr(&book, "category_list"))
+```
+
 ### Belongs To Many IDs
 
 A "belongs_to_many_ids" relation is similar to a "belongs_to_many" but instead of the field being a slice of structs, it is a slice of IDs, and methods are provided to easily synchronize the join table.
 
-// SYNCING JOIN TABLE IDS
+```golang
+type Book struct {
+	BookID string           `db:"book_id" tmeta:"pk"`
+	Title string            `db:"title"`
+	CategoryIDList []string `db:"-" tmeta:"belongs_to_many_ids,join_name=book_category"`
+}
+
+// BookCategory is the join table
+type BookCategory struct {
+	BookID     string `db:"book_id" tmeta:"pk"`
+	CategoryID string `db:"category_id" tmeta:"pk"`
+}
+
+type Category struct {
+	CategoryID string `db:"category_id" tmeta:"pk"`
+	Name       string `db:"name"`
+}
+
+// set the list of IDs in the join
+book.CategoryIDList = []string{"category_0001","category_0002"}
+// to synchronize we first delete any not in the new set
+err = b.ExecOK(b.MustDeleteRelationNotIn(&book, "category_id_list")))
+// and then insert (with ignore) the set
+err = b.ExecOK(b.MustInsertRelationIgnore(&book, "category_id_list")))
+
+// and you load it like any other relation
+book.CategoryIDList = nil
+_, err = b.MustSelectRelation(&book, "category_id_list").
+	Load(bookT.RelationTargetPtr(&book, "category_id_list"))
+```
 
 ### Relation Targets
 
-(SelectRelationPtr vs SelectRelation and RelationTargetPtr)
+When selecting relations, the query builder needs the object to inspect and the name of the relation.  However, the call to actually execute the select statement also needs to know the "target" field to load into.
+
+The examples above use `SelectRelation` and `RelationTargetPtr` pointer to do this.  This allows you to dynamically load a relation by only knowing it's name.  If you are hard coding for a specific relation you can pass a pointer to the field itself.  `SelectRelationPtr` is also available and returns the pointer when the query is built.  Pick your poison.
 
 ## Create and Update Timestamps
 
+Create and update timestamps will be updated at the appropriate time with a simple call to the appropriate method on your struct, if it exists:
+
+```
+// called on insert
+func (w *Widget) CreateTimeTouch() { ... }
+
+// called on update
+func (w *Widget) UpdateTimeTouch() { ... }
+```
+
+TODO: Give an example of create and update time fields that work as expected in SQLite3, Postgres and MySQL, both the Go side and the DB column types.
 
 ## Optimistic Locking
 
-(recommend conflict get pushed back up to the UI to be resolved by user - simple case refresh page, more complex case form can try to dynamically pull fresh record and merge - either way the idea is to prevent saves from clobbering each other)
+Optimistic locking means there is a version field on your table and when you perform an update it checks that the version did not change since you selected it earlier.
+
+UpdateByID will generate SQL that checks for the previous version and increments to the next number.  If zero rows are matched, you know the record has been modified since (or deleted).  In this case, the correct thing to do is inform the original caller of the problem so the user can fix it (by refreshing the page, etc.)
+
+ResultWithOneUpdate makes this simple.  Example:
+
+```golang
+err = b.ResultWithOneUpdate(b.MustUpdateByID(&theRecord).Exec()))
+```
+
+In this case theRecord was read earlier, some fields were modified and it's being updated now.  If not exactly one record was updated, `ErrUpdateFailed` will be returned.
 
 ## Convience Methods - Must..., Result... and Exec...
 
-(errors during query building will only be due to wrong type or field information, so using the Must... variations can provide convenience, blah blah)  Basically, incorrect query building is generally going to be due to developer error, not user input, so using Must and panicing in this case can be an acceptable tradeoff for the convenience it provides.
+Some convenience methods are included on Builder which should reduce unneeded checks for common cases.
+
+- Methods starting with `Must` will panic instead of returning an error, but note that this is only on the query building itself, not on query execution.  Panics should only occur if you give it wrong type information or have incorrect struct tags.  So the panic cases will be due to developer error, not runtime environment or user input, so using `Must` and panicing in this case can be an acceptable tradeoff for the convenience it provides (being able to chain more stuff in a single expression).
+- `ResultWithOneUpdate` will check that your query returned exactly one row.
+- `ResultWithInsertID` will populate the ID that was inserted into the primary key of your struct.
+- `ResultOK` will ignore the result and only return the error (provided for convenient method chaining).
+- `ExecOK` will run `Exec`, discard the sql.Result and just return the error.
+- `ExecContextOK` is like `ExecOK` but accepts a context.Context also.
 
 ## Primary Keys (String/UUIDs or Auto-Increment)
-(consider just using v6 base64 UUIDs)
+
+Primary can be strings or auto-increment integers.  We recommend using string UUIDs.  The package [gouuidv6](https://github.com/bradleypeabody/gouuidv6) provides a way to make IDs that are globally unique, sort by creation time and are relatively short.  UUIDs are more resilient architectural changes in long-lived projects (sharding, database synchronization problems, clustered servers, etc.)
+
+Auto-increment works just fine as well.
+
+Multiple primary keys are supported (and necessary for join tables).  Not well tested on non-join tables, buyer beware.
 
 ## Recommended Use and "Stores"
 
-(define 'store' and 'model')
-(each method uses a transaction, passes context)
-(one store for entire application or section of application that has related tables (if too large))
-(DefaultMeta is there for convience, but if you need (or might need as your project grows) multiple then tmetadbr.New() is the way to go)
+TODO: define 'store' and 'model', show example and each method uses a transaction, passes context; one store for entire application or section of application that has related tables (if too large); DefaultMeta is there for convience, but if you need (or might need as your project grows) multiple then tmetadbr.New() is the way to go
 
 ## Useful Relation Patterns
 
-- LoadWidgetRelations(relationNames ...string)
--- filter before doing, pass through the ones that are safe
--- custom names with special where clauses
+- LoadWidgetRelations(relationNames ...string); filter before doing, pass through the ones that are safe; custom names with special where clauses
 - SaveJoinRelations(relationNames ...string)
 - Eager loading
 
-
 ## Naming Conventions
 
-(you can override whatever you want, but some conventions keep things simple)
-(mention the TableInfo name as being separate from the actual SQL table name, although they are the same by default)
+TODO:  (you can override whatever you want, but some conventions keep things simple) (mention the TableInfo name as being separate from the actual SQL table name, although they are the same by default)
 - no plurals in database field names, just use the singlar everywhere so it's the same; for relation names you can use "list" as a suffix, e.g. CategoryIDList
 - id fields are the table name with `_id` at the end of it, i.e. "book_id", not just "id"; this means the same logical field has the same name in any table, and it can be derived easily
-
 
 ## Motivation
 
