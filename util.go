@@ -1,27 +1,16 @@
 package tmeta
 
 import (
-	"fmt"
+	"log"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
-
-func pkFromObj(ti *TableInfo, obj interface{}) ([]interface{}, error) {
-	var ret []interface{}
-	// v := derefValue(reflect.ValueOf(obj))
-	for _, kname := range ti.KeySQLFields {
-		fv, err := fieldValue(obj, kname)
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, fv)
-	}
-	return ret, nil
-}
 
 func derefType(t reflect.Type) reflect.Type {
 	for t.Kind() == reflect.Ptr {
@@ -37,68 +26,129 @@ func derefValue(v reflect.Value) reflect.Value {
 	return v
 }
 
-var ErrNoField = fmt.Errorf("field not found")
-var ErrNoTable = fmt.Errorf("table not found for object/type")
-
-type fieldIndexCacheKey struct {
-	Type         reflect.Type
-	SQLFieldName string
+// like derefType but will take a slice look at it's element type,
+// non-slice types are treated the same as by derefType
+func elemDerefType(t reflect.Type) reflect.Type {
+	t = derefType(t)
+	if t.Kind() == reflect.Slice {
+		t = derefType(t.Elem())
+	}
+	return t
 }
 
-var fieldIndexCache = make(map[fieldIndexCacheKey]int, 16)
-var fieldIndexMutex sync.Mutex
+type sqlFieldIndexCacheKey struct {
+	T reflect.Type
+	F string
+}
 
-func fieldIndex(obj interface{}, sqlFieldName string) (out int, rete error) {
+var sqlFieldIndexCacheMU sync.RWMutex
+var sqlFieldIndexCache = make(map[sqlFieldIndexCacheKey][]int)
 
-	t := derefType(reflect.TypeOf(obj))
+func sqlFieldIndex(t reflect.Type, sqlFieldName string) []int {
 
-	fieldIndexMutex.Lock()
-	ret, ok := fieldIndexCache[fieldIndexCacheKey{t, sqlFieldName}]
-	fieldIndexMutex.Unlock()
+	sqlFieldIndexCacheMU.RLock()
+	ret, ok := sqlFieldIndexCache[sqlFieldIndexCacheKey{T: t, F: sqlFieldName}]
+	sqlFieldIndexCacheMU.RUnlock()
+
 	if ok {
-		return ret, nil
+		return ret
 	}
 
-	// record result in cache if not error
-	defer func() {
-		if rete == nil {
-			fieldIndexMutex.Lock()
-			fieldIndexCache[fieldIndexCacheKey{t, sqlFieldName}] = out
-			fieldIndexMutex.Unlock()
-		}
-	}()
+	sqlFieldIndexCacheMU.Lock()
+	defer sqlFieldIndexCacheMU.Unlock()
 
-	for j := 0; j < t.NumField(); j++ {
-		f := t.Field(j)
-		dbName := strings.SplitN(f.Tag.Get("db"), ",", 2)[0]
-		// explicitly skip "-" db tags
-		if dbName == "-" {
+	for _, idx := range exportedFieldIndexes(t) {
+		sf := t.FieldByIndex(idx)
+		sfdb := strings.SplitN(sf.Tag.Get("db"), ",", 2)[0]
+		if sfdb == "" || sfdb == "-" {
 			continue
 		}
-		if dbName == sqlFieldName {
-			return j, nil
-		}
-		dbName = camelToSnake(f.Name)
-		if dbName == sqlFieldName {
-			return j, nil
+		if sfdb == sqlFieldName {
+			ret = idx
+			break
 		}
 	}
 
-	return -1, ErrNoField
+	// write result to cache (might be nil, but that's okay to cache also)
+	sqlFieldIndexCache[sqlFieldIndexCacheKey{T: t, F: sqlFieldName}] = ret
 
+	return ret
 }
 
-func fieldValue(obj interface{}, sqlFieldName string) (interface{}, error) {
+func sqlFieldValue(v reflect.Value, sqlFieldName string) interface{} {
 
-	i, err := fieldIndex(obj, sqlFieldName)
-	if err != nil {
-		return nil, err
+	t := v.Type()
+	idx := sqlFieldIndex(t, sqlFieldName)
+	if idx == nil {
+		return nil
 	}
 
-	v := derefValue(reflect.ValueOf(obj))
-	return v.Field(i).Interface(), nil
-
+	f := v.FieldByIndex(idx)
+	return f.Interface()
 }
+
+// var ErrNoField = fmt.Errorf("field not found")
+// var ErrNoTable = fmt.Errorf("table not found for object/type")
+
+// type fieldIndexCacheKey struct {
+// 	Type         reflect.Type
+// 	SQLFieldName string
+// }
+
+// var fieldIndexCache = make(map[fieldIndexCacheKey]int, 16)
+// var fieldIndexMutex sync.Mutex
+
+// func fieldIndex(obj interface{}, sqlFieldName string) (out int, rete error) {
+
+// 	t := derefType(reflect.TypeOf(obj))
+
+// 	fieldIndexMutex.Lock()
+// 	ret, ok := fieldIndexCache[fieldIndexCacheKey{t, sqlFieldName}]
+// 	fieldIndexMutex.Unlock()
+// 	if ok {
+// 		return ret, nil
+// 	}
+
+// 	// record result in cache if not error
+// 	defer func() {
+// 		if rete == nil {
+// 			fieldIndexMutex.Lock()
+// 			fieldIndexCache[fieldIndexCacheKey{t, sqlFieldName}] = out
+// 			fieldIndexMutex.Unlock()
+// 		}
+// 	}()
+
+// 	for j := 0; j < t.NumField(); j++ {
+// 		f := t.Field(j)
+// 		dbName := strings.SplitN(f.Tag.Get("db"), ",", 2)[0]
+// 		// explicitly skip "-" db tags
+// 		if dbName == "-" {
+// 			continue
+// 		}
+// 		if dbName == sqlFieldName {
+// 			return j, nil
+// 		}
+// 		dbName = camelToSnake(f.Name)
+// 		if dbName == sqlFieldName {
+// 			return j, nil
+// 		}
+// 	}
+
+// 	return -1, ErrNoField
+
+// }
+
+// func fieldValue(obj interface{}, sqlFieldName string) (interface{}, error) {
+
+// 	i, err := fieldIndex(obj, sqlFieldName)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	v := derefValue(reflect.ValueOf(obj))
+// 	return v.Field(i).Interface(), nil
+
+// }
 
 // Shamelessly borrowed from: https://github.com/fatih/camelcase/blob/master/camelcase.go
 
@@ -242,4 +292,61 @@ func structTagToValues(st string) url.Values {
 	}
 
 	return ret
+}
+
+// printEventReceiver writes to anything that implements printer.
+// For example a *log.Logger
+type printEventReceiver struct {
+	printer
+}
+
+// printer interface matches log.Print and implementations should behave in a compatible manner.
+type printer interface {
+	Print(v ...interface{})
+}
+
+// newPrintEventReceiver creates an instance that prints to the printer you provide.
+// Passing nil will use a log.Logger that writes to os.Stderr.
+func newPrintEventReceiver(p printer) *printEventReceiver {
+	if p == nil {
+		p = log.New(os.Stderr, "", log.LstdFlags)
+	}
+	return &printEventReceiver{
+		printer: p,
+	}
+}
+
+// Event receives a simple notification when various events occur.
+func (r *printEventReceiver) Event(eventName string) {
+	r.Print(eventName)
+}
+
+// EventKv receives a notification when various events occur along with
+// optional key/value data.
+func (r *printEventReceiver) EventKv(eventName string, kvs map[string]string) {
+	r.Print(eventName, ": ", kvs)
+}
+
+// EventErr receives a notification of an error if one occurs.
+func (r *printEventReceiver) EventErr(eventName string, err error) error {
+	r.Print(eventName, ", err: ", err)
+	return err
+}
+
+// EventErrKv receives a notification of an error if one occurs along with
+// optional key/value data.
+func (r *printEventReceiver) EventErrKv(eventName string, err error, kvs map[string]string) error {
+	r.Print(eventName, ": ", kvs, ", err: ", err)
+	return err
+}
+
+// Timing receives the time an event took to happen.
+func (r *printEventReceiver) Timing(eventName string, nanoseconds int64) {
+	r.Print(eventName, ": timing: ", time.Duration(nanoseconds))
+}
+
+// TimingKv receives the time an event took to happen along with optional key/value data.
+func (r *printEventReceiver) TimingKv(eventName string, nanoseconds int64, kvs map[string]string) {
+	r.Print(eventName, ": ", kvs, ": timing: ", time.Duration(nanoseconds))
+
 }
