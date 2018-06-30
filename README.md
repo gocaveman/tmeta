@@ -20,6 +20,48 @@
 
 ## Basic CRUD
 
+The `tmeta` package understands your types and `tmetadbr` provides query building using [dbr](https://github.com/gocraft/dbr).
+
+Like so (error checking omitted):
+
+```golang
+type Widget struct {
+	WidgetID string `db:"widget_id" tmeta:"pk"`
+	Name string `db:"name"`
+}
+
+// register things
+meta := tmeta.NewMeta()
+err := meta.Parse(Widget{})
+
+conn, err := dbr.Open("sqlite3", "file:test?mode=memory&cache=shared", nil)
+
+// use a Builder to construct queries
+b := tmetadbr.New(conn, meta)
+
+// create
+widgetID := gouuidv6.NewB64().String()
+_, err = b.MustInsert(&Widget{
+	WidgetID: widgetID,
+	Name: "Widget A",
+}).Exec()
+
+// read multiple
+var widgetList []Widget
+_, err = b.MustSelect(&widgetList).Where("name LIKE ?", "Widget%").Load(&widgetList)
+
+// read one
+var widget Widget
+err = b.MustSelectByID(&widget, widgetID).LoadOne(&widget)
+
+// update
+widget.Name = "Widget A1"
+_, err = b.MustUpdateByID(&widget).Exec()
+
+// delete
+_, err = b.MustDeleteByID(Widget{}, widgetID).Exec()
+```
+
 ## Relations
 
 (include snippets of the example structs as we go)
