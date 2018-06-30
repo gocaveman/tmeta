@@ -22,7 +22,7 @@
 
 The `tmeta` package understands your types and `tmetadbr` provides query building using [dbr](https://github.com/gocraft/dbr).
 
-Like so (error checking omitted):
+To get set up and concisely run your queries:
 
 ```golang
 type Widget struct {
@@ -34,17 +34,18 @@ type Widget struct {
 meta := tmeta.NewMeta()
 err := meta.Parse(Widget{})
 
+// database connection with dbr
 conn, err := dbr.Open("sqlite3", "file:test?mode=memory&cache=shared", nil)
 
 // use a Builder to construct queries
 b := tmetadbr.New(conn, meta)
 
+// don't get scared by the "Must" in front of these functions, it applies to the
+// query building steps, not to the queries themselves
+
 // create
 widgetID := gouuidv6.NewB64().String()
-_, err = b.MustInsert(&Widget{
-	WidgetID: widgetID,
-	Name: "Widget A",
-}).Exec()
+_, err = b.MustInsert(&Widget{WidgetID: widgetID,Name: "Widget A"}).Exec()
 
 // read multiple
 var widgetList []Widget
@@ -62,7 +63,10 @@ _, err = b.MustUpdateByID(&widget).Exec()
 _, err = b.MustDeleteByID(Widget{}, widgetID).Exec()
 ```
 
+Variations of these methods without `Must` are available if you want type errors to be returned instead of panicing.
+
 ## Relations
+
 
 (include snippets of the example structs as we go)
 
