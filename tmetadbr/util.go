@@ -1,7 +1,6 @@
 package tmetadbr
 
 import (
-	"crypto/rand"
 	"fmt"
 	"log"
 	"os"
@@ -9,8 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gocaveman/tmeta"
 )
 
 // CreateTimeToucher can be implemented by objects to be notified when their create time should be set to "now".
@@ -40,56 +37,56 @@ type UpdateTimeToucher interface {
 // func invokeUpdateTimeTouch(v interface{}) bool {
 // }
 
-// UUIDV4Generator implements IDGenerator and will populate string PK fields with a version 4 UUID.
-func UUIDV4Generator(meta *tmeta.Meta, obj interface{}) error {
+// // UUIDV4Generator implements IDGenerator and will populate string PK fields with a version 4 UUID.
+// func UUIDV4Generator(meta *tmeta.Meta, obj interface{}) error {
 
-	ti := meta.For(obj)
-	if ti == nil {
-		return ErrTypeNotRegistered
-	}
+// 	ti := meta.For(obj)
+// 	if ti == nil {
+// 		return ErrTypeNotRegistered
+// 	}
 
-	// no action if auto increment
-	if ti.PKAutoIncr() {
-		return nil
-	}
+// 	// no action if auto increment
+// 	if ti.PKAutoIncr() {
+// 		return nil
+// 	}
 
-	v := reflect.ValueOf(obj)
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem() // deref
-	}
+// 	v := reflect.ValueOf(obj)
+// 	for v.Kind() == reflect.Ptr {
+// 		v = v.Elem() // deref
+// 	}
 
-	goPKFields := ti.GoPKFields()
-	for _, f := range goPKFields {
-		sf, ok := ti.GoType().FieldByNameFunc(func(fn string) bool { return fn == f })
-		if !ok {
-			return fmt.Errorf("tmetadbr: unable to find Go field %q", f)
-		}
-		vsf := v.FieldByIndex(sf.Index)
-		if vsf.Kind() != reflect.String {
-			return fmt.Errorf("unable to populate primary key of type: %T", vsf.Interface())
-		}
-		u, err := uuidv4()
-		if err != nil {
-			return err
-		}
-		vsf.SetString(u)
-	}
+// 	goPKFields := ti.GoPKFields()
+// 	for _, f := range goPKFields {
+// 		sf, ok := ti.GoType().FieldByNameFunc(func(fn string) bool { return fn == f })
+// 		if !ok {
+// 			return fmt.Errorf("tmetadbr: unable to find Go field %q", f)
+// 		}
+// 		vsf := v.FieldByIndex(sf.Index)
+// 		if vsf.Kind() != reflect.String {
+// 			return fmt.Errorf("unable to populate primary key of type: %T", vsf.Interface())
+// 		}
+// 		u, err := uuidv4()
+// 		if err != nil {
+// 			return err
+// 		}
+// 		vsf.SetString(u)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-func uuidv4() (string, error) {
+// func uuidv4() (string, error) {
 
-	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
+// 	b := make([]byte, 16)
+// 	_, err := rand.Read(b)
+// 	if err != nil {
+// 		return "", err
+// 	}
 
-	ret := fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+// 	ret := fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 
-	return ret, nil
-}
+// 	return ret, nil
+// }
 
 func derefType(t reflect.Type) reflect.Type {
 	for t.Kind() == reflect.Ptr {
