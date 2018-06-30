@@ -89,13 +89,13 @@ This package is currently on version 0, so there is no official guarantee of API
 
 ## TODO
 
-- Test for each relation type
-- Test auto increment
-- Test optimistic locking (versions)
-- Test MySQL-specifc stuff
-- Test Postgres-specifc stuff
 - Write at least a one-liner comment for each public function and type (tmeta and tmetadbr)
 - Consider making a global DefaultMeta, Parse functions and MustParse - to follow HTTP package pattern of having a simple singleton use, plus the most sophisticated use; document this
 - Complete README
 - See if tmeta itself needs any more tests, or just cleanup
+
+- Test auto increment
+- Test optimistic locking (versions)
+- Test MySQL-specifc stuff
+- Test Postgres-specifc stuff
 - Tag it v0.1.0
