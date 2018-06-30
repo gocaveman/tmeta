@@ -50,6 +50,7 @@ var (
 	_ Session = &dbr.Tx{}
 )
 
+// New returns a new Builder.
 func New(sess Session, meta *tmeta.Meta) *Builder {
 	return &Builder{
 		Session: sess,
@@ -58,6 +59,8 @@ func New(sess Session, meta *tmeta.Meta) *Builder {
 	}
 }
 
+// Builder is used to do query building.
+// It has a Session (can be a *dbr.Session or *dbr.Tx) and *tmeta.Meta.
 type Builder struct {
 	Session Session
 	*tmeta.Meta

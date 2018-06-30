@@ -1,6 +1,5 @@
 // Provides SQL table metadata, enabling select field lists, easy getters,
-// relations when using a query builder like gocraft/dbr.
-//
+// relations when using a query builder.
 package tmeta
 
 import (
