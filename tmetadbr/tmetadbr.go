@@ -23,13 +23,13 @@ var (
 	ErrUpdateFailed = &errorWithCode{code: 409, msg: "tmetadbr: update failed (not found or version conflict)"}
 )
 
-// IDGenerator is a function that can take an object and create IDs for the
-// primary key(s).  Only needed for non-auto_increment pks and in the usual
-// case it's only needed for strings, since integers are usually auto_increment.
-type IDGenerator func(meta *tmeta.Meta, obj interface{}) error
+// // IDGenerator is a function that can take an object and create IDs for the
+// // primary key(s).  Only needed for non-auto_increment pks and in the usual
+// // case it's only needed for strings, since integers are usually auto_increment.
+// type IDGenerator func(meta *tmeta.Meta, obj interface{}) error
 
-// DefaultIDGenerator is used when an IDGenerator is not set on Builder.
-var DefaultIDGenerator = UUIDV4Generator
+// // DefaultIDGenerator is used when an IDGenerator is not set on Builder.
+// var DefaultIDGenerator = UUIDV4Generator
 
 // Session is implemented by *dbr.Session and *dbr.Tx
 type Session interface {
@@ -52,16 +52,16 @@ var (
 
 func New(sess Session, meta *tmeta.Meta) *Builder {
 	return &Builder{
-		Session:     sess,
-		Meta:        meta,
-		IDGenerator: DefaultIDGenerator,
+		Session: sess,
+		Meta:    meta,
+		// IDGenerator: DefaultIDGenerator,
 	}
 }
 
 type Builder struct {
 	Session Session
 	*tmeta.Meta
-	IDGenerator IDGenerator
+	// IDGenerator IDGenerator
 }
 
 // hack this dialect detection for now, would be nicer to have something more

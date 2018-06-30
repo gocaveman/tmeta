@@ -2,6 +2,7 @@ package tmeta
 
 import "reflect"
 
+// Relation is implemented by the supported types of relations, `BelongsTo`, HasMany, etc.
 type Relation interface {
 	RelationName() string
 	RelationGoValueField() string

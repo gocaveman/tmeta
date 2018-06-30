@@ -13,6 +13,10 @@
 - Primary keys can be string/UUID (recommended) or auto-incremented integer.
 - Supports SQLite3, MySQL, Postgres
 
+## GoDoc
+- tmeta (table/type information) https://godoc.org/github.com/gocaveman/tmeta
+- tmetadbr (query building) https://godoc.org/github.com/gocaveman/tmeta/tmetadbr
+
 ## Basic CRUD
 
 ## Relations
