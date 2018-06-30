@@ -36,19 +36,24 @@ func (rm RelationMap) RelationTargetPtr(o interface{}, n string) interface{} {
 // BelongsTo is a relation for a single struct pointer where the
 // ID of the linked row is stored on this table.
 //
-// Example:
+// Example using struct tags:
 //
 //	type Book struct {
 //		// ...
 //
-//		// this ID points to the row in the "author" table
+//		// This ID points to the row in the "author" table.
 //		AuthorID string  `db:"author_id"`
 //
-//		// this is the "author" relation that can be loaded from it
-//		Author   *Author `db:"-" tmeta:"belongs_to,sql_id_field=author_id"`
+//		// This is the "author" relation that can be loaded from it.
+//		Author   *Author `db:"-" tmeta:"belongs_to"`
 //	}
 //
-// No options are required, sql_id_field be deduced from types if not specified.
+// Full form with all options:
+//
+//		// The sql_id_field here must match the db struct tag in the field above.
+//		Author   *Author `db:"-" tmeta:"belongs_to,relation_name=author,sql_id_field=author_id"`
+//
+// No options are required except the relation type ("belongs_to").
 type BelongsTo struct {
 	Name         string
 	GoValueField string // e.g. "Author" (of type *Author)
@@ -62,6 +67,27 @@ func (r *BelongsTo) RelationGoValueField() string {
 	return r.GoValueField
 }
 
+// HasMany is a relation for a slice where the ID of the linked rows
+// are stored on the other table.
+//
+// Example using struct tags:
+//
+//	type Publisher struct {
+//		// ...
+//		BookList []Book `db:"-" tmeta:"has_many"`
+//	}
+//
+//	type Book {
+//		// ...
+//		PublisherID string `db:"publisher_id"`
+//	}
+//
+// Full form with all options:
+//
+//		// The sql_other_id_field here must match the ID field in the other table.
+//		BookList []Book `db:"-" tmeta:"has_many,relation_name=book_list,sql_other_id_field=publisher_id"`
+//
+// No options are required except the relation type ("has_many").
 type HasMany struct {
 	Name            string
 	GoValueField    string // e.g. "Books" (of type []Book)
