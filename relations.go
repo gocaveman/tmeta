@@ -101,6 +101,26 @@ func (r *HasMany) RelationGoValueField() string {
 	return r.GoValueField
 }
 
+// HasOne is a relation for a slice where the ID of the linked rows
+// are stored on the other table.
+//
+// Example using struct tags:
+//
+//	type Category struct {
+//		// ...
+//		CategoryInfo *CategoryInfo `db:"-" tmeta:"has_one"`
+//	}
+//
+//	type CategoryInfo struct {
+//		// ...
+//		CategoryID     string    `db:"category_id"` // one to one relation
+//	}
+//
+// Full form with all options:
+//
+//		CategoryInfo *CategoryInfo `db:"-" tmeta:"has_one,relation_name=category_info,sql_other_id_field=category_id"`
+//
+// No options are required except the relation type ("has_one").
 type HasOne struct {
 	Name            string
 	GoValueField    string // e.g. "CategoryInfo" (of type *CategoryInfo)
@@ -114,6 +134,31 @@ func (r *HasOne) RelationGoValueField() string {
 	return r.GoValueField
 }
 
+// BelongsToMany is a relation that uses a join table as a many to many relation.
+//
+// Example using struct tags:
+//
+//	type Book struct {
+//		// ...
+//		CategoryList []Category `db:"-" tmeta:"belongs_to_many,join_name=book_category"`
+//	}
+//
+//	// BookCategory is the join table.
+//	type BookCategory struct {
+//		BookID     string `db:"book_id" tmeta:"pk"`
+//		CategoryID string `db:"category_id" tmeta:"pk"`
+//	}
+//
+//	type Category struct {
+//		CategoryID   string        `db:"category_id" tmeta:"pk"`
+//		Name         string        `db:"name"`
+//	}
+//
+// Full form with all options:
+//
+//		CategoryList []Category `db:"-" tmeta:"belongs_to_many,join_name=book_category,sql_id_field=book_id,sql_other_id_field=category_id"`
+//
+// The join_name option is required.
 type BelongsToMany struct {
 	Name            string
 	GoValueField    string // e.g. "BookLists" (of type []Book)
@@ -129,6 +174,33 @@ func (r *BelongsToMany) RelationGoValueField() string {
 	return r.GoValueField
 }
 
+// BelongsToManyIDs is a relation that uses a join table as a many to many relation
+// but stores the IDs in a slice instead of the instances directly.  Useful for
+// easily updating the join table.
+//
+// Example using struct tags:
+//
+//	type Book struct {
+//		// ...
+//		CategoryIDList []string `db:"-" tmeta:"belongs_to_many_ids,join_name=book_category"`
+//	}
+//
+//	// BookCategory is the join table.
+//	type BookCategory struct {
+//		BookID     string `db:"book_id" tmeta:"pk"`
+//		CategoryID string `db:"category_id" tmeta:"pk"`
+//	}
+//
+//	type Category struct {
+//		CategoryID   string        `db:"category_id" tmeta:"pk"`
+//		Name         string        `db:"name"`
+//	}
+//
+// Full form with all options:
+//
+//		CategoryIDList []string `db:"-" tmeta:"belongs_to_many_ids,join_name=book_category,sql_id_field=book_id,sql_other_id_field=category_id"`
+//
+// The join_name option is required.
 type BelongsToManyIDs struct {
 	Name            string
 	GoValueField    string // e.g. "BookIDList" (of type []string)

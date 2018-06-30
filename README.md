@@ -11,6 +11,7 @@
 - Date Created/Updated functionality
 - Normal underlying DB features like transactions and context support are not hidden from you and easily usable.
 - Primary keys can be string/UUID (recommended) or auto-incremented integer.
+- We don't do DDL, yes this is a feature.
 - Supports SQLite3, MySQL, Postgres
 
 ## GoDoc
