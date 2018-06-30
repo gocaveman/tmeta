@@ -22,6 +22,14 @@ Some conventions for consistency:
   or interfaces removed.  Public functions should take care to derefType() or derefValue() as needed.
 */
 
+// DefaultMeta is a global instance, for convenience.
+var DefaultMeta = NewMeta()
+
+// Parse is an alias for DefaultMeta.Parse()
+func (m *Meta) Parse(i interface{}) error {
+	return DefaultMeta.Parse(i)
+}
+
 // NewMeta makes a new Meta.
 func NewMeta() *Meta {
 	return &Meta{
