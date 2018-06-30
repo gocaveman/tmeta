@@ -72,6 +72,8 @@ With `tmetadbr` you can also easily generate the SQL to load related records.
 
 ### Has Many
 
+A "has many" relation is used by one table where a second one has an ID that points back to it.
+
 ```golang
 type Author struct {
 	AuthorID   string `db:"author_id" tmeta:"pk"`
@@ -97,12 +99,25 @@ _, err = b.MustSelectRelation(&author, "book_list").Load(&author.BookList)
 
 ### Has One
 
+A "has_one" relation is like a "has_many" but is used for a one-to-one relation.
+
+```golang
+```
 
 ### Belongs To
 
+A "belongs_to" relation is the inverse of a "has_many", it is used when the ID is on the same table as the field being loaded.
+
+```golang
+```
+
 ### Belongs To Many
 
+A "belongs_to_many" relation is used for a many-to-many relation, using a join table.
+
 ### Belongs To Many IDs
+
+A "belongs_to_many_ids" relation is similar to a "belongs_to_many" but instead of the field being a slice of structs, it is a slice of IDs, and methods are provided to easily synchronize the join table.
 
 // SYNCING JOIN TABLE IDS
 
