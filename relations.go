@@ -2,7 +2,7 @@ package tmeta
 
 import "reflect"
 
-// Relation is implemented by the supported types of relations, `BelongsTo`, HasMany, etc.
+// Relation is implemented by the supported types of relations, BelongsTo, HasMany, etc.
 type Relation interface {
 	RelationName() string
 	RelationGoValueField() string
@@ -33,6 +33,22 @@ func (rm RelationMap) RelationTargetPtr(o interface{}, n string) interface{} {
 	return f.Addr().Interface()
 }
 
+// BelongsTo is a relation for a single struct pointer where the
+// ID of the linked row is stored on this table.
+//
+// Example:
+//
+//	type Book struct {
+//		// ...
+//
+//		// this ID points to the row in the "author" table
+//		AuthorID string  `db:"author_id"`
+//
+//		// this is the "author" relation that can be loaded from it
+//		Author   *Author `db:"-" tmeta:"belongs_to,sql_id_field=author_id"`
+//	}
+//
+// No options are required, sql_id_field be deduced from types if not specified.
 type BelongsTo struct {
 	Name         string
 	GoValueField string // e.g. "Author" (of type *Author)
