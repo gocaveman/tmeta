@@ -27,7 +27,7 @@ To get set up and concisely run your queries:
 ```golang
 type Widget struct {
 	WidgetID string `db:"widget_id" tmeta:"pk"`
-	Name string `db:"name"`
+	Name     string `db:"name"`
 }
 
 // register things
@@ -49,6 +49,7 @@ _, err = b.MustInsert(&Widget{WidgetID: widgetID,Name: "Widget A"}).Exec()
 
 // read multiple
 var widgetList []Widget
+// notice you can modify the queries before they are executed - where, limit, order by, etc.
 _, err = b.MustSelect(&widgetList).Where("name LIKE ?", `Widget%`).Load(&widgetList)
 
 // read one
@@ -67,12 +68,32 @@ Variations of these methods without `Must` are available if you want type errors
 
 ## Relations
 
-
-(include snippets of the example structs as we go)
+With `tmetadbr` you can also easily generate the SQL to load related records.
 
 ### Has Many
 
-// LOADING NAMED RELATIONS (WITH WHERE...)
+```golang
+type Author struct {
+	AuthorID   string `db:"author_id" tmeta:"pk"`
+	NomDePlume string `db:"nom_de_plume"`
+	BookList   []Book `db:"-" tmeta:"has_many"`
+}
+
+type Book struct {
+	BookID   string `db:"book_id" tmeta:"pk"`
+	AuthorID string `db:"author_id"`
+	Title    string `db:"title"`
+}
+
+
+authorT := b.For(Author{})
+
+_, err = b.MustSelectRelation(&author, "book_list").
+	Load(authorT.RelationTargetPtr(&author, "book_list"))
+
+// or you can load directly into the field, less dynamic but shorter and more clear
+_, err = b.MustSelectRelation(&author, "book_list").Load(&author.BookList)
+```
 
 ### Has One
 
