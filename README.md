@@ -48,7 +48,7 @@ _, err = b.MustInsert(&Widget{
 
 // read multiple
 var widgetList []Widget
-_, err = b.MustSelect(&widgetList).Where("name LIKE ?", "Widget%").Load(&widgetList)
+_, err = b.MustSelect(&widgetList).Where("name LIKE ?", `Widget%`).Load(&widgetList)
 
 // read one
 var widget Widget
