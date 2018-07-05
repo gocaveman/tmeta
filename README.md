@@ -210,7 +210,7 @@ The examples above use `SelectRelation` and `RelationTargetPtr` pointer to do th
 
 ## Create and Update Timestamps, and Dates in General
 
-Create and update timestamps will be updated at the appropriate time with a simple call to the appropriate method on your struct, if it exists:
+Create and update timestamps will be updated at the appropriate time with a simple call to the corresponding method on your struct, if it exists:
 
 ```golang
 // called on insert
@@ -304,7 +304,7 @@ In this case `theRecord` was read earlier, some fields were modified and it's be
 
 ## Convience Methods - Must..., Result... and Exec...
 
-Some convenience methods are included on Builder which should reduce unneeded checks for common cases.
+Some convenience methods are included on [Builder](https://godoc.org/github.com/gocaveman/tmeta/tmetadbr#Builder) which should reduce unneeded checks for common cases.
 
 - Methods starting with `Must` will panic instead of returning an error, but note that this is only on the query building itself, not on query execution.  Panics should only occur if you give it wrong type information or have incorrect struct tags.  So the panic cases will be due to developer error, not runtime environment or user input, so using `Must` and panicing in this case can be an acceptable tradeoff for the convenience it provides (being able to chain more stuff in a single expression).
 - `ResultWithOneUpdate` will check that your query returned exactly one row.
@@ -482,7 +482,7 @@ As a general rule, you can set whatever specific names you want in tmeta.  The "
 
 The convention encouraged by tmeta is to avoid pluralization pretty much whenever possible.  Translating "Category" into "Categories" and taking into account variations in how pluralization is done in English and in other languages can be non-trivial, is not positive (error prone) and has little benefit.  It's way better to just say "Category" everywhere.
 
-For fields that are a list, the suggested approach is to append "List".  So you get "CategoryList" and ("category_list", the SQL field name equivalent).
+For fields that are a list, the suggested approach is to append "List".  So you get "CategoryList".
 
 This convention makes it a lot easier to match things up, because they have the same exact name everywhere.
 
