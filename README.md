@@ -11,7 +11,7 @@
 - Date Created/Updated functionality
 - Normal underlying DB features like transactions and context support are not hidden from you and easily usable.
 - Primary keys can be string/UUID (recommended) or auto-incremented integer.
-- We don't do DDL, yes this is a feature.
+- We don't do DDL, this makes things simpler.  (DDL is necessary but should be separate.)
 - Supports SQLite3, MySQL, Postgres
 
 ## GoDoc
@@ -192,9 +192,9 @@ type Category struct {
 // set the list of IDs in the join
 book.CategoryIDList = []string{"category_0001","category_0002"}
 // to synchronize we first delete any not in the new set
-err = b.ExecOK(b.MustDeleteRelationNotIn(&book, "category_id_list")))
+err = b.ExecOK(b.MustDeleteRelationNotIn(&book, "category_id_list"))
 // and then insert (with ignore) the set
-err = b.ExecOK(b.MustInsertRelationIgnore(&book, "category_id_list")))
+err = b.ExecOK(b.MustInsertRelationIgnore(&book, "category_id_list"))
 
 // and you load it like any other relation
 book.CategoryIDList = nil
@@ -208,11 +208,11 @@ When selecting relations, the query builder needs the object to inspect and the 
 
 The examples above use `SelectRelation` and `RelationTargetPtr` pointer to do this.  This allows you to dynamically load a relation by only knowing it's name.  If you are hard coding for a specific relation you can pass a pointer to the field itself.  `SelectRelationPtr` is also available and returns the pointer when the query is built.  Pick your poison.
 
-## Create and Update Timestamps
+## Create and Update Timestamps, and Dates in General
 
 Create and update timestamps will be updated at the appropriate time with a simple call to the appropriate method on your struct, if it exists:
 
-```
+```golang
 // called on insert
 func (w *Widget) CreateTimeTouch() { ... }
 
@@ -220,7 +220,73 @@ func (w *Widget) CreateTimeTouch() { ... }
 func (w *Widget) UpdateTimeTouch() { ... }
 ```
 
-TODO: Give an example of create and update time fields that work as expected in SQLite3, Postgres and MySQL, both the Go side and the DB column types.
+That part is easy.
+
+To get date-time information to work correctly on multiple databases/drivers and make use of Go's `time.Time`, marshal to/from JSON correctly, have subsecond precision, is human readable, and avoid time zone confusion, it is useful to make a custom type that deals with these concerns.
+
+In SQLite3 use `TEXT` as the column type, in Postgres use `DATETIME` and in MySQL use `DATETIME(6)` (requires 5.6.4 or above for subsecond precision).
+
+Here is a recommendation on a type that accomplishes this:
+
+```golang
+func NewDBTime() DBTime {
+	return DBTime{Time: time.Now()}
+}
+
+type DBTime struct {
+	time.Time
+}
+
+func (t DBTime) Value() (driver.Value, error) {
+	if t.IsZero() {
+		return nil, nil
+	}
+	// use UTC to avoid time zone ambiguity
+	return t.Time.UTC().Format(`2006-01-02T15:04:05.999999999`), nil
+}
+
+func (t *DBTime) Scan(value interface{}) error {
+
+	if value == nil {
+		t.Time = time.Time{}
+		return nil
+	}
+
+	var s string
+	switch v := value.(type) {
+	case string:
+		s = v
+	case []byte:
+		s = string(v)
+	default:
+		return fmt.Errorf("DBTime.Scan: unable to scan type %T", value)
+	}
+
+	// MySQL uses a space instead of a "T", replace before parsing
+	s = strings.Replace(s, " ", "T", 1)
+
+	var err error
+	// use UTC to avoid time zone ambiguity
+	t.Time, err = time.ParseInLocation(`2006-01-02T15:04:05.999999999`, s, time.UTC)
+	// switch to local time zone
+	t.Time = t.Time.Local()
+	return err
+}
+```
+
+You can then use this on your model object for any timestamps you need, including the create and update time:
+
+```golang
+type Widget struct {
+	// ...
+	CreateTime   DBTime `db:"create_time"`
+	UpdateTime   DBTime `db:"update_time"`
+	// ...
+}
+
+func (w *Widget) CreateTimeTouch() { w.CreateTime = NewDBTime() }
+func (w *Widget) UpdateTimeTouch() { w.UpdateTime = NewDBTime() }
+```
 
 ## Optimistic Locking
 
@@ -231,7 +297,7 @@ UpdateByID will generate SQL that checks for the previous version and increments
 ResultWithOneUpdate makes this simple.  Example:
 
 ```golang
-err = b.ResultWithOneUpdate(b.MustUpdateByID(&theRecord).Exec()))
+err = b.ResultWithOneUpdate(b.MustUpdateByID(&theRecord).Exec())
 ```
 
 In this case `theRecord` was read earlier, some fields were modified and it's being updated now.  If not exactly one record was updated, `ErrUpdateFailed` will be returned.
@@ -257,19 +323,170 @@ Multiple primary keys are supported (and necessary for join tables).  Not well t
 
 ## Recommended Use and "Stores"
 
-TODO: define 'store' and 'model', show example and each method uses a transaction, passes context; one store for entire application or section of application that has related tables (if too large); DefaultMeta is there for convience, but if you need (or might need as your project grows) multiple then tmetadbr.New() is the way to go
+Generally `tmeta` doesn't care how it is called.  If you want, you can use it directly in your HTTP handlers to build and run queries.  However, we recommend you construct a "store" that acts as a data access layer on top of your database tables and house the query construction and execution in there.  Your store would accept and return pointers to "model" objects (a struct that corresponds to your table(s)).
 
-## Useful Relation Patterns
+This is roughly analogous to the Data Access Object design pattern, although the point is to organize your code so queries can be maintained with in a specific section of the code, not to zealously adhere to this pattern.
 
-- LoadWidgetRelations(relationNames ...string); filter before doing, pass through the ones that are safe; custom names with special where clauses
-- SaveJoinRelations(relationNames ...string)
-- Eager loading
+Store methods would contain basic CRUD operations, plus any other more complex cases.  Anything that requires it's own transaction goes as a method on the store.  These days, store methods should also accept and use a `context.Context`, this allows cancellation at a higher layer (for example the HTTP client closed the connection) to cause pending database queries to be cancelled.  Fancy.
+
+Your HTTP handlers/controllers, etc. can then use this store to access things.
+
+Here's an example:
+
+```golang
+type Store struct {
+	*tmeta.Meta
+	*dbr.Connection
+}
+
+func (s *Store) CreateWidget(ctx context.Context, o *Widget) error {
+	tx, err := s.Connection.NewSession(nil).BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	b := tmetadbr.New(tx, s.Meta)
+
+	o.WidgetID = gouuidv6.NewB64().String() // however you want to create your IDs
+
+	err = b.ResultWithOneUpdate(b.MustInsert(o).ExecContext(ctx))
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// ...
+
+```
+
+Often there is only one `tmeta.Meta` in your application, but in large apps you can have sections of tables that only need to be aware of each other, in this case just make a new one (`tmeta.New()`) for each, and each store would have one.
+
+## Useful Relational Patterns
+
+Some fancy things you can do with your relations include:
+
+### Eager Loading
+
+"Eager loading" is a feature of some ORMs, and we can achieve equivalent (less magical) functionality in our Store by simply adding `SelectRelation` calls in the appropriate "read" method:
+
+```golang
+func (s *Store) FindWidgetByID(ctx context.Context, widgetID string) (*Widget, error) {
+	tx, err := s.Connection.NewSession(nil).BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	b := tmetadbr.New(tx, s.Meta)
+
+	// load the widget
+	var widget Widget
+	err = b.MustSelectByID(&widget, widgetID).LoadOneContext(ctx, &widget)
+	if err != nil {
+		return err
+	}
+
+	// eager load the "category_list" relation
+	_, err = b.MustSelectRelation(&widget, "category_list").
+		Load(s.Meta.For(widget).RelationTargetPtr(&widget, "category_list"))
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+```
+
+### Loading Relations Dynamically
+
+It can be useful to allow other layers to request one or more relations by name.  The store can then load these relations as requested and can also easily implement aliases for useful variations.  The names should be filtered to avoid callers requesting too much data.  Example:
+
+```golang
+func (s *Store) LoadWidgetRelations(ctx context.Context, widget *Widget, relationNames ...string) error {
+	tx, err := s.Connection.NewSession(nil).BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	b := tmetadbr.New(tx, s.Meta)
+
+	for _, rn := range relationNames {
+		switch rn {
+			// these relations we just load as-is
+		case "category_list", "category_id_list":
+			_, err = b.MustSelectRelation(widget, rn).
+				Load(s.Meta.For(widget).RelationTargetPtr(widget, rn))
+			if err != nil {
+				return err
+			}
+
+			// it can be useful to provide more magical names with specific queries like this
+		case "change_list_last10":
+			_, err = b.MustSelectRelation(widget, "change_list").
+				Where("change_type = ?", "normal").
+				OrderDesc("create_time").
+				Limit(10).
+				Load(s.Meta.For(widget).RelationTargetPtr(widget, "change_list"))
+			if err != nil {
+				return err
+			}
+
+		default:
+			return fmt.Errorf("unkown (or disallowed) relation %q", rn)
+		}
+	}
+
+	return tx.Commit()
+```
+
+### Saving "Belongs to Many IDs" Join Tables
+
+Another common relational pattern is to have a join table that needs to be updated to "match this set of IDs".  If a Widget has a many-to-many join to Category (using a join table), you could easily synchronize the IDs in your update method like so:
+
+```golang
+func (s *Store) UpdateWidget(ctx context.Context, widget *Widget) error {
+	tx, err := s.Connection.NewSession(nil).BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	b := tmetadbr.New(tx, s.Meta)
+
+	// update widget record
+	err = b.ResultWithOneUpdate(b.MustUpdateByID(widget).Exec())
+	if err != nil {
+		return err
+	}
+
+	// to synchronize we first delete any not in the new set
+	err = b.ExecOK(b.MustDeleteRelationNotIn(widget, "category_id_list"))
+	if err != nil {
+		return err
+	}
+	// and then insert (with ignore) the set
+	err = b.ExecOK(b.MustInsertRelationIgnore(widget, "category_id_list"))
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+```
 
 ## Naming Conventions
 
-TODO:  (you can override whatever you want, but some conventions keep things simple) (mention the TableInfo name as being separate from the actual SQL table name, although they are the same by default)
-- no plurals in database field names, just use the singlar everywhere so it's the same; for relation names you can use "list" as a suffix, e.g. CategoryIDList
-- id fields are the table name with `_id` at the end of it, i.e. "book_id", not just "id"; this means the same logical field has the same name in any table, and it can be derived easily
+As a general rule, you can set whatever specific names you want in tmeta.  The "Name" corresponding to a struct is by default it's snake-cased translation of the struct name.  So "WidgetFactory" has a "Name" of "widget_factory".  The "SQLName" is the name of the table in the database, and by default it is the same as Name, but is easily changable.  Any time you reference a table in your code however you should do so using it's Name, and then you can SQLName() to get the actual table name.
+
+The convention encouraged by tmeta is to avoid pluralization pretty much whenever possible.  Translating "Category" into "Categories" and taking into account variations in how pluralization is done in English and in other languages can be non-trivial, is not positive (error prone) and has little benefit.  It's way better to just say "Category" everywhere.
+
+For fields that are a list, the suggested approach is to append "List".  So you get "CategoryList" and ("category_list", the SQL field name equivalent).
+
+This convention makes it a lot easier to match things up, because they have the same exact name everywhere.
+
+Also, rather than having tables with just an "id" column tmeta encourages prefixing the identifier with the logical name of the object, e.g. a "Widget" struct has the name "widget" and it's primary key is "widget_id".  This makes it so that anywhere a widget is referenced it is clearly an identfier for that type.  Otherwise everytime you look at an "id" field you have to figure out what is being identified.
 
 ## Motivation
 
@@ -284,8 +501,5 @@ This package is currently on version 0, so there is no official guarantee of API
 
 ## TODO
 
-- Write tests for auto increment
-- Write tests for optimistic locking (versions)
-- Write tests for MySQL-specifc stuff
-- Write tests for Postgres-specifc stuff
-- Tag it v0.1.0
+- More testing on auto increment, optimistic locking (versions), MySQL, Postgres
+- Repo tag

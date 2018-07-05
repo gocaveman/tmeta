@@ -1,6 +1,9 @@
 package tmetadbr
 
 import (
+	"database/sql/driver"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +13,7 @@ import (
 
 func TestCRUD(t *testing.T) {
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +59,7 @@ func TestTx(t *testing.T) {
 	// do a few quick things just to make sure transactions generally work
 
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +100,7 @@ func TestAutoIncrement(t *testing.T) {
 func TestRelationBelongsTo(t *testing.T) {
 
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +136,7 @@ func TestRelationBelongsTo(t *testing.T) {
 func TestRelationHasMany(t *testing.T) {
 
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +174,7 @@ func TestRelationHasMany(t *testing.T) {
 func TestRelationHasOne(t *testing.T) {
 
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +204,7 @@ func TestRelationHasOne(t *testing.T) {
 func TestRelationBelongsToMany(t *testing.T) {
 
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +247,7 @@ func TestRelationBelongsToMany(t *testing.T) {
 func TestRelationBelongsToManyIDs(t *testing.T) {
 
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,20 +304,119 @@ func TestRelationBelongsToManyIDs(t *testing.T) {
 
 }
 
-type TimeTester struct {
-	TimeTesterID int64     `db:"time_tester_id" tmeta:"pk,auto_incr"`
-	Name         string    `db:"name"`
-	CreateTime   time.Time `db:"create_time"`
-	UpdateTime   time.Time `db:"update_time"`
+// func NewDBNanoTime() DBNanoTime {
+// 	return DBNanoTime{Time: time.Now()}
+// }
+
+// type DBNanoTime struct {
+// 	time.Time
+// }
+
+// func (t DBNanoTime) Value() (driver.Value, error) {
+// 	if t.IsZero() {
+// 		return nil, nil
+// 	}
+// 	return driver.Value(t.UnixNano()), nil
+// }
+
+// func (t *DBNanoTime) Scan(value interface{}) error {
+// 	if value == nil {
+// 		t.Time = time.Time{}
+// 		return nil
+// 	}
+// 	switch v := value.(type) {
+// 	case int:
+// 		t.Time = time.Unix(0, int64(v))
+// 	case int64:
+// 		t.Time = time.Unix(0, int64(v))
+// 	case uint:
+// 		t.Time = time.Unix(0, int64(v))
+// 	case uint64:
+// 		t.Time = time.Unix(0, int64(v))
+// 	case float32:
+// 		t.Time = time.Unix(0, int64(v))
+// 	case float64:
+// 		t.Time = time.Unix(0, int64(v))
+// 	case string:
+// 		var n int64
+// 		_, err := fmt.Sscanf(v, "%d", &n)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		t.Time = time.Unix(0, n)
+// 	case []byte:
+// 		var n int64
+// 		_, err := fmt.Sscanf(string(v), "%d", &n)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		t.Time = time.Unix(0, n)
+// 	default:
+// 		return fmt.Errorf("DBNanoTime.Scan: unknown type %T", value)
+// 	}
+
+// 	return nil
+// }
+
+func NewDBTime() DBTime {
+	return DBTime{Time: time.Now()}
 }
 
-func (tt *TimeTester) CreateTimeTouch() { tt.CreateTime = time.Now() }
-func (tt *TimeTester) UpdateTimeTouch() { tt.UpdateTime = time.Now() }
+type DBTime struct {
+	time.Time
+}
+
+func (t DBTime) Value() (driver.Value, error) {
+	if t.IsZero() {
+		return nil, nil
+	}
+	// use UTC to avoid time zone ambiguity
+	return t.Time.UTC().Format(`2006-01-02T15:04:05.999999999`), nil
+}
+
+func (t *DBTime) Scan(value interface{}) error {
+
+	if value == nil {
+		t.Time = time.Time{}
+		return nil
+	}
+
+	var s string
+	switch v := value.(type) {
+	case string:
+		s = v
+	case []byte:
+		s = string(v)
+	default:
+		return fmt.Errorf("DBTime.Scan: unable to scan type %T", value)
+	}
+
+	// MySQL uses a space instead of a "T", replace before parsing
+	s = strings.Replace(s, " ", "T", 1)
+
+	var err error
+	// use UTC to avoid time zone ambiguity
+	t.Time, err = time.ParseInLocation(`2006-01-02T15:04:05.999999999`, s, time.UTC)
+	// switch to local time zone
+	t.Time = t.Time.Local()
+	return err
+}
+
+// TimeTester uses both DBTime and DBNanoTime
+type TimeTester struct {
+	TimeTesterID int64  `db:"time_tester_id" tmeta:"pk,auto_incr"`
+	Name         string `db:"name"`
+	CreateTime   DBTime `db:"create_time"`
+	UpdateTime   DBTime `db:"update_time"`
+}
+
+func (tt *TimeTester) CreateTimeTouch() { tt.CreateTime = NewDBTime() }
+func (tt *TimeTester) UpdateTimeTouch() { tt.UpdateTime = NewDBTime() }
 
 func TestSQLite3(t *testing.T) {
 
 	assert := assert.New(t)
-	sess, meta, err := doSetup()
+	sess, meta, err := doSetup("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,6 +441,17 @@ CREATE TABLE time_tester (
 	res, err := b.MustInsert(&timeTester).Exec()
 	assert.NoError(b.ResultWithInsertID(&timeTester, res, err))
 
+	var timeTester2 TimeTester
+	assert.NoError(
+		b.MustSelectByID(&timeTester2, timeTester.TimeTesterID).
+			LoadOne(&timeTester2))
+
+	t.Logf("timeTester2 = %#v", timeTester2)
+	t.Logf("timeTester2 times (%v, %v)",
+		timeTester2.CreateTime,
+		timeTester2.UpdateTime,
+	)
+
 }
 
 func TestMySQL(t *testing.T) {
@@ -346,14 +459,44 @@ func TestMySQL(t *testing.T) {
 		t.SkipNow()
 	}
 
-	// type Widget1 struct {
-	// 	Widget1ID  int64     `db:"widget1_id" tmeta:"pk,auto_incr"`
-	// 	Name       string    `db:"name"`
-	// 	CreateTime time.Time `db:"create_time"`
-	// 	UpdateTime time.Time `db:"update_time"`
-	// }
+	assert := assert.New(t)
+	sess, meta, err := doSetup("sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	t.Logf("TODO: MySQL-specific testing")
+	_, err = sess.Exec(`
+CREATE TABLE time_tester (
+	time_tester_id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name VARCHAR(255),
+	create_time DATETIME(6),
+	update_time DATETIME(6)
+)`)
+	assert.NoError(err)
+
+	meta.MustParse(TimeTester{})
+
+	b := New(sess, meta)
+
+	timeTester := TimeTester{
+		Name: "test1",
+	}
+
+	res, err := b.MustInsert(&timeTester).Exec()
+	assert.NoError(b.ResultWithInsertID(&timeTester, res, err))
+
+	var timeTester2 TimeTester
+	assert.NoError(
+		b.MustSelectByID(&timeTester2, timeTester.TimeTesterID).
+			LoadOne(&timeTester2))
+
+	t.Logf("timeTester2 = %#v", timeTester2)
+	t.Logf("timeTester2 times (%v, %v)",
+		timeTester2.CreateTime,
+		timeTester2.UpdateTime,
+	)
+
+	t.Logf("TODO: additional MySQL-specific testing")
 }
 
 func TestPostgres(t *testing.T) {

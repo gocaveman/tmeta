@@ -60,9 +60,19 @@ type CategoryInfo struct {
 	Category       *Category `db:"-" tmeta:"belongs_to"`
 }
 
-func doSetup() (*dbr.Session, *tmeta.Meta, error) {
+func doSetup(driver string) (*dbr.Session, *tmeta.Meta, error) {
 
-	conn, err := dbr.Open("sqlite3", fmt.Sprintf(`file:tmeta_test%d?mode=memory&cache=shared`, rand.Int31()), nil)
+	var conn *dbr.Connection
+	var err error
+
+	switch driver {
+	case "sqlite3":
+		conn, err = dbr.Open("sqlite3", fmt.Sprintf(`file:tmeta_test%d?mode=memory&cache=shared`, rand.Int31()), nil)
+	case "mysql":
+		conn, err = dbr.Open("mysql", mysqlConnStr, nil)
+	case "postgres":
+		conn, err = dbr.Open("postgres", postgresConnStr, nil)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
