@@ -440,6 +440,7 @@ func (s *Store) LoadWidgetRelations(ctx context.Context, widget *Widget, relatio
 	}
 
 	return tx.Commit()
+}
 ```
 
 ### Saving "Belongs to Many IDs" Join Tables
@@ -474,6 +475,7 @@ func (s *Store) UpdateWidget(ctx context.Context, widget *Widget) error {
 	}
 
 	return tx.Commit()
+}
 ```
 
 ## Naming Conventions
