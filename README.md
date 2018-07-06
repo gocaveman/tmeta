@@ -503,5 +503,6 @@ This package is currently on version 0, so there is no official guarantee of API
 
 ## TODO
 
+- Better documentation on auto-increment and version columns
 - More testing on auto increment, optimistic locking (versions), MySQL, Postgres
 - Repo tag
