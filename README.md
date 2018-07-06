@@ -1,4 +1,4 @@
-# Minimalistic Idiomatic Database "ORM" functionality for Go
+# Minimalistic Idiomatic Database "ORM" Functionality for Go
 
 ## Features
 - Structs have SQL table information associated with them - tmeta knows that your `WidgetFactory` struct corresponds to the "widget_factory" table (names configurable, of course).
@@ -378,7 +378,7 @@ Auto-increment works just fine as well.
 
 ```golang
 type Widget struct {
-	WidgetID int64 `db:"widget_id" tmeta:"pk,auto_incr"` // auto-increment primary key (db table must be set to provide key values, i.e. "AUTO INCREMENT")
+	WidgetID int64 `db:"widget_id" tmeta:"pk,auto_incr"` // auto-increment primary key (db table must be set to provide key values, e.g. "AUTO INCREMENT")
 }
 ```
 
@@ -432,7 +432,7 @@ func (s *Store) CreateWidget(ctx context.Context, o *Widget) error {
 
 ```
 
-Often there is only one `tmeta.Meta` in your application, but in large apps you can have sections of tables that only need to be aware of each other, in this case just make a new one (`tmeta.New()`) for each, and each store would have one.
+Often there is only one `tmeta.Meta` in your application, but in large apps you can have sections of tables that only need to be aware of each other, in this case just make a new one (`tmeta.NewMeta()`) for each, and each store would have one.
 
 ## Useful Relational Patterns
 
