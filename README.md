@@ -574,5 +574,6 @@ This package is currently on version 0, so there is no official guarantee of API
 
 ## TODO
 
+- Consider adding a struct tag to express a "field that should be inserted but not updated" (useful for create_time, for example), see if there are any others like this and what API additions this would mean
 - More testing on auto increment, optimistic locking (versions), MySQL, Postgres
 - Repo tag
