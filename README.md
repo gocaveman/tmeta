@@ -66,6 +66,49 @@ _, err = b.MustDeleteByID(Widget{}, widgetID).Exec()
 
 Variations of these methods without `Must` are available if you want type errors to be returned instead of panicing.
 
+## Table Info
+
+`tmeta` understands basic properties about your tables such as SQL table name, the primary key(s), and the list of fields.  These things can be easily set up once and then don't have to be repated in your code, resulting in code that is safer, more resilient to change, still simple and generally just easier to maintain.
+
+```golang
+type Widget struct {
+	WidgetID string `db:"widget_id" tmeta:"pk"`
+	Name     string `db:"name"`
+}
+
+// a Meta instance holds info for a group of tables (usually all your tables)
+meta := tmeta.NewMeta()
+
+// parse the struct tags and add the table to your Meta instance
+// note that pointers are automatically dereferenced throughout, so for the purpose
+// of table metadata a Widget and *Widget are treated the same
+err := meta.Parse(Widget{})
+
+// fetch the table name
+tableName := meta.For(Widget{}).SQLName()
+
+// you can also set the SQL table name, useful for prefixing tables
+meta.For(Widget{}).SetSQLName("demoapp_widget")
+
+// code can fetch table info either by struct type
+widgetTI := meta.For(Widget{})
+// or by logical name
+widgetTI = meta.ForName("widget")
+
+// get a slice of primary key SQL field names (tagged with `tmeta:"pk"`)
+pkFieldSlice := widgetTI.SQLPKFields()
+
+// get a slice of all of the SQL fields, including the primary keys
+fieldSlice := widgetTI.SQLFields(true)
+
+// or without the pks
+fieldSlice = widgetTI.SQLFields(false)
+```
+
+Have a look at the [TableInfo](https://godoc.org/github.com/gocaveman/tmeta#TableInfo) godoc for a full list of what's available.
+
+This functionality from `tmeta` is what is used by `tmetadbr` to implement higher level query building.
+
 ## Relations
 
 With `tmetadbr` you can also easily generate the SQL to load related records.
@@ -292,6 +335,14 @@ func (w *Widget) UpdateTimeTouch() { w.UpdateTime = NewDBTime() }
 
 Optimistic locking means there is a version field on your table and when you perform an update it checks that the version did not change since you selected it earlier.
 
+```golang
+type Widget struct {
+	WidgetID string `db:"widget_id" tmeta:"pk"`
+	Name     string `db:"name"`
+	Version  int    `db:"version" tmeta:"version"`
+}
+```
+
 UpdateByID will generate SQL that checks for the previous version and increments to the next number.  If zero rows are matched, you know the record has been modified since (or deleted).  In this case, the correct thing to do is inform the original caller of the problem so the user can fix it (by refreshing the page, etc.)
 
 ResultWithOneUpdate makes this simple.  Example:
@@ -300,7 +351,7 @@ ResultWithOneUpdate makes this simple.  Example:
 err = b.ResultWithOneUpdate(b.MustUpdateByID(&theRecord).Exec())
 ```
 
-In this case `theRecord` was read earlier, some fields were modified and it's being updated now.  If not exactly one record was updated, `ErrUpdateFailed` will be returned.
+In this case `theRecord` was read earlier, some fields were modified and it's being updated now.  If not exactly one record was updated, `ErrUpdateFailed` will be returned.  You should not increment the version number, `UpdateByID` will do that for you (i.e. if you read version 6 from the db, you pass that 6 back into `UpdateByID` and it will do `UPDATE ... SET ... version = 7 ... WHERE ... version = 6 ...`)
 
 ## Convience Methods - Must..., Result... and Exec...
 
@@ -317,9 +368,29 @@ Some convenience methods are included on [Builder](https://godoc.org/github.com/
 
 Primary can be strings or auto-increment integers.  We recommend using string UUIDs.  The package [gouuidv6](https://github.com/bradleypeabody/gouuidv6) provides a way to make IDs that are globally unique, sort by creation time and are relatively short.  UUIDs are more resilient architectural changes in long-lived projects (sharding, database synchronization problems, clustered servers, etc.)
 
+```golang
+type Widget struct {
+	WidgetID string `db:"widget_id" tmeta:"pk"` // string/UUID primary key
+}
+```
+
 Auto-increment works just fine as well.
 
+```golang
+type Widget struct {
+	WidgetID int64 `db:"widget_id" tmeta:"pk,auto_incr"` // auto-increment primary key (db table must be set to provide key values, i.e. "AUTO INCREMENT")
+}
+```
+
 Multiple primary keys are supported (and necessary for join tables).  Not well tested on non-join tables, buyer beware.
+
+```golang
+type WidgetCategory struct {
+	// both widget_id and category_id are the combined primary key
+	WidgetID   string `db:"widget_id" tmeta:"pk"`
+	CategoryID string `db:"category_id" tmeta:"pk"`
+}
+```
 
 ## Recommended Use and "Stores"
 
@@ -503,6 +574,5 @@ This package is currently on version 0, so there is no official guarantee of API
 
 ## TODO
 
-- Better documentation on auto-increment and version columns
 - More testing on auto increment, optimistic locking (versions), MySQL, Postgres
 - Repo tag
