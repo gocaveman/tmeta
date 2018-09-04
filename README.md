@@ -37,8 +37,11 @@ err := meta.Parse(Widget{})
 // database connection with dbr
 conn, err := dbr.Open(...)
 
+// initialize a session
+sess := conn.NewSession(nil)
+
 // use a Builder to construct queries
-b := tmetadbr.New(conn, meta)
+b := tmetadbr.New(sess, meta)
 
 // don't get scared by the "Must" in front of these functions, it applies to the
 // query building steps, not to the queries themselves
