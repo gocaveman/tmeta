@@ -369,7 +369,7 @@ Some convenience methods are included on [Builder](https://godoc.org/github.com/
 
 ## Primary Keys (String/UUIDs or Auto-Increment)
 
-Primary can be strings or auto-increment integers.  We recommend using string UUIDs.  The package [gouuidv6](https://github.com/bradleypeabody/gouuidv6) provides a way to make IDs that are globally unique, sort by creation time and are relatively short.  UUIDs are more resilient architectural changes in long-lived projects (sharding, database synchronization problems, clustered servers, etc.)
+Primary can be strings or auto-increment integers.  We recommend using string UUIDs.  The package [gouuidv6](https://github.com/bradleypeabody/gouuidv6) provides a way to make IDs that are globally unique, sort by creation time and are relatively short.  UUIDs are more resilient to architectural changes in long-lived projects (sharding, database synchronization problems, clustered servers, etc.)
 
 ```golang
 type Widget struct {
@@ -385,13 +385,23 @@ type Widget struct {
 }
 ```
 
-Multiple primary keys are supported (and necessary for join tables).  Not well tested on non-join tables, buyer beware.
+Multiple primary keys are supported (and necessary for join tables).
 
 ```golang
 type WidgetCategory struct {
 	// both widget_id and category_id are the combined primary key
 	WidgetID   string `db:"widget_id" tmeta:"pk"`
 	CategoryID string `db:"category_id" tmeta:"pk"`
+}
+```
+
+The `IDAssigner` interface can be implemented to allow a struct to assign itself a new ID when needed.  `Insert` (and `MustInsert`) will look for an `IDAssign` method and call it if present before performing an insertion.
+
+```golang
+func (w *Widget) IDAssign() {
+	if w.WidgetID == "" {
+		w.WidgetID = gouuidv6.NewB64().String()
+	}
 }
 ```
 

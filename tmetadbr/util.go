@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+// IDAssigner can be implemented by objects to provide a means to "set the ID to a new value if not already done".
+type IDAssigner interface {
+	IDAssign()
+}
+
 // CreateTimeToucher can be implemented by objects to be notified when their create time should be set to "now".
 type CreateTimeToucher interface {
 	CreateTimeTouch()

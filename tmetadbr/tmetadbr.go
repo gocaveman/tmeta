@@ -170,6 +170,10 @@ func (b *Builder) Insert(o interface{}) (*dbr.InsertStmt, error) {
 			} else {
 				el = elv.Interface()
 			}
+			// id assign if possible
+			if ida, ok := el.(IDAssigner); ok {
+				ida.IDAssign()
+			}
 			// touch create time if possible
 			if ctt, ok := el.(CreateTimeToucher); ok {
 				ctt.CreateTimeTouch()
@@ -182,6 +186,10 @@ func (b *Builder) Insert(o interface{}) (*dbr.InsertStmt, error) {
 		}
 
 	} else { // one record
+		// id assign if possible
+		if ida, ok := o.(IDAssigner); ok {
+			ida.IDAssign()
+		}
 		// touch create time if possible
 		if ctt, ok := o.(CreateTimeToucher); ok {
 			ctt.CreateTimeTouch()
