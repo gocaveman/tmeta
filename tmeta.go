@@ -190,6 +190,22 @@ func (ti *TableInfo) SQLFields(withPK bool) []string {
 	return ret
 }
 
+// SQLFieldsExcept returns the SQL field names for this table excluding the ones you provide.
+func (ti *TableInfo) SQLFieldsExcept(exceptFields ...string) []string {
+	fs := ti.SQLFields(true)
+	ret := make([]string, 0, len(fs))
+nextField:
+	for _, f := range fs {
+		for _, ef := range exceptFields {
+			if f == ef {
+				continue nextField
+			}
+		}
+		ret = append(ret, f)
+	}
+	return ret
+}
+
 // SQLPKWhere returns a where clause with the primary key fields ANDed together and "?" for placeholders.
 // For example: "key1 = ? AND key2 = ?"
 func (ti *TableInfo) SQLPKWhere() string {
