@@ -1,6 +1,9 @@
 package tmeta
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+)
 
 // Relation is implemented by the supported types of relations, BelongsTo, HasMany, etc.
 type Relation interface {
@@ -15,6 +18,17 @@ type RelationMap map[string]Relation
 // RelationNamed is a simple map lookup.
 func (rm RelationMap) RelationNamed(n string) Relation {
 	return rm[n]
+}
+
+// CheckRelationNames will return an error if any of the names you provide is not a valid relation name.
+func (rm RelationMap) CheckRelationNames(names ...string) error {
+	for _, n := range names {
+		_, ok := rm[n]
+		if !ok {
+			return fmt.Errorf("invalid relation name %q", n)
+		}
+	}
+	return nil
 }
 
 // RelationTargetPtr will find the named relation and use it's RelationGoValueField
