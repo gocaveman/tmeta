@@ -291,12 +291,14 @@ func (b *Builder) UpdateByID(o interface{}) (*dbr.UpdateStmt, error) {
 	// extract and increment version value
 	var curVer interface{}
 	if ti.SQLVersionField() != "" {
-		curVer := vmap[ti.SQLVersionField()]
-		newVer, err := incrementInteger(curVer)
-		if err != nil {
-			return nil, err
+		curVer = vmap[ti.SQLVersionField()]
+		if vi, ok := o.(VersionIncrementer); ok {
+			vi.VersionIncrement()
+			vmap2 := ti.SQLValueMap(o, false) // FIXME: would be a bit more performant if we didn't re-do the whole map here, but it's not doing conversion so not so bad...
+			vmap[ti.SQLVersionField()] = vmap2[ti.SQLVersionField()]
+		} else {
+			return nil, fmt.Errorf("SQLVersionField is set to %q but VersionIncrement not implemented for type %T", ti.SQLVersionField(), o)
 		}
-		vmap[ti.SQLVersionField()] = newVer
 	}
 
 	ustmt := b.Session.

@@ -1,7 +1,6 @@
 package tmetadbr
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -36,6 +35,11 @@ type CreateTimeToucher interface {
 // UpdateTimeToucher can be implemented by objects to be notified when their update time should be set to "now".
 type UpdateTimeToucher interface {
 	UpdateTimeTouch()
+}
+
+// VersionIncrementer can be implemented by objects to update their version field to the next value.
+type VersionIncrementer interface {
+	VersionIncrement()
 }
 
 // // checks to see if v implements or if it's pointer does and calls if so, returns true if it worked
@@ -222,28 +226,28 @@ func stringsAddPrefix(slist []string, prefix string) []string {
 	return ret
 }
 
-func incrementInteger(v interface{}) (interface{}, error) {
+// func incrementInteger(v interface{}) (interface{}, error) {
 
-	vv := reflect.ValueOf(v)
-	vt := vv.Type()
+// 	vv := reflect.ValueOf(v)
+// 	vt := vv.Type()
 
-	switch vt.Kind() {
-	case reflect.Int:
-		vv.Set(reflect.ValueOf(vv.Interface().(int) + 1))
-	case reflect.Uint:
-		vv.Set(reflect.ValueOf(vv.Interface().(uint) + 1))
-	case reflect.Int32:
-		vv.Set(reflect.ValueOf(vv.Interface().(int32) + 1))
-	case reflect.Uint32:
-		vv.Set(reflect.ValueOf(vv.Interface().(uint32) + 1))
-	case reflect.Int64:
-		vv.Set(reflect.ValueOf(vv.Interface().(int64) + 1))
-	case reflect.Uint64:
-		vv.Set(reflect.ValueOf(vv.Interface().(uint64) + 1))
-	}
+// 	switch vt.Kind() {
+// 	case reflect.Int:
+// 		vv.Set(reflect.ValueOf(vv.Interface().(int) + 1))
+// 	case reflect.Uint:
+// 		vv.Set(reflect.ValueOf(vv.Interface().(uint) + 1))
+// 	case reflect.Int32:
+// 		vv.Set(reflect.ValueOf(vv.Interface().(int32) + 1))
+// 	case reflect.Uint32:
+// 		vv.Set(reflect.ValueOf(vv.Interface().(uint32) + 1))
+// 	case reflect.Int64:
+// 		vv.Set(reflect.ValueOf(vv.Interface().(int64) + 1))
+// 	case reflect.Uint64:
+// 		vv.Set(reflect.ValueOf(vv.Interface().(uint64) + 1))
+// 	}
 
-	return nil, fmt.Errorf("%T is not a supported integer type", v)
-}
+// 	return nil, fmt.Errorf("%T is not a supported integer type", v)
+// }
 
 // printEventReceiver writes to anything that implements printer.
 // For example a *log.Logger
